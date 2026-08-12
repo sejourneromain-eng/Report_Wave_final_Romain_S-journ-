@@ -1,7 +1,7 @@
 # Report Wave Final - Romain S. Journé
 
 <div align="center">
-  <img src="https://www.ufrj.br/wp-content/themes/ufrj/images/logo-ufrj.png" alt="UFRJ Logo" width="240" />
+  <img src="https://raw.githubusercontent.com/sejourneromain-eng/Report_Wave_final_Romain_S-journ-/main/ufrj-logo.png" alt="UFRJ Logo" width="420" />
 </div>
 
 <p align="center">
