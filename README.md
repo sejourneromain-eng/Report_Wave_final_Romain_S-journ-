@@ -17,24 +17,29 @@
   </a>
 </p>
 
-This project focuses on wave detection and analysis from video sequences using computer vision and YOLOv8. It includes scripts for downloading video content, extracting frames, creating datasets, training a model, and evaluating wave-related risk indicators.
+## Abstract
 
-## Overview
+This repository documents a research-oriented workflow for the automatic detection and characterization of wave dynamics from visual data. The project combines computer vision, deep learning, and geospatial data processing to extract informative frames from video sequences and train a YOLOv8-based model for object detection in coastal or oceanic scenes.
 
-The repository contains tools for:
-
-- downloading video data from YouTube,
-- extracting frames from videos stored locally or in Google Drive,
-- preparing a dataset for training,
-- training a YOLOv8 model,
-- running inference on video streams,
-- displaying annotated results and risk-related statistics.
-
-This work is designed for a research and prototype pipeline related to coastal or ocean wave monitoring.
+The objective is to build a reproducible pipeline for dataset preparation, model training, and inference analysis, with a focus on wave pattern recognition and risk assessment in marine environments.
 
 ---
 
-## Project structure
+## Research context
+
+The workflow is designed for experimental analysis in the context of image-based coastal monitoring. It integrates:
+
+- video acquisition from online sources and local storage,
+- frame extraction and dataset curation,
+- deep learning-based object detection,
+- video annotation and visual interpretation,
+- environmental and hydrodynamic reasoning through risk indicators.
+
+This approach is relevant to applications such as coastal surveillance, marine observation, and automated analysis of wave behavior from remote visual sources.
+
+---
+
+## Repository structure
 
 ```text
 Report_Wave_final_Romain_S-journ-
@@ -50,71 +55,37 @@ Report_Wave_final_Romain_S-journ-
 ### File descriptions
 
 - [Code to create frame of a video youtube.md](Code%20to%20create%20frame%20of%20a%20video%20youtube.md)  
-  Downloads a video from YouTube, saves it in Google Drive, and extracts frames at a fixed interval.
+  Video acquisition script using YouTube download tools and automatic frame extraction for dataset generation.
 
 - [code to create frame of a video in a drive](code%20to%20create%20frame%20of%20a%20video%20in%20a%20drive)  
-  Opens a video already stored in Google Drive and saves frames into a dataset folder.
+  Extraction pipeline for videos already available on Google Drive, transforming them into image datasets.
 
 - [Code to see the training](Code%20to%20see%20the%20training)  
-  Demonstrates model loading, inference, object detection, and annotated output generation.
+  Model inspection and inference script used to visualize annotated detections and computed risk-related overlays.
 
 - [Code to train the YOLOv8 AI](Code%20to%20train%20the%20YOLOv8%20AI)  
-  Contains the YOLOv8 training workflow using Ultralytics and a pre-trained model.
+  Model training pipeline based on Ultralytics YOLOv8 and pretrained weights.
 
 - [take data on Copernicus](take%20data%20on%20Copernicus)  
-  Used for gathering environmental or geospatial data, including Copernicus data access workflows.
+  Reference script or procedure for acquiring environmental or geospatial data from Copernicus-related sources.
 
 ---
 
-## Workflow
+## Methodology
 
-1. Collect or download video data.
-2. Extract frames from the video at a chosen interval.
-3. Store the resulting frames in a drive or dataset folder.
-4. Train a YOLOv8 model with the prepared dataset.
-5. Run inference on new videos.
-6. Visualize detections and risk indicators.
+### 1. Data acquisition
 
----
+Video data are collected from external sources and stored in a structured project directory. The scripts are designed to operate in Google Colab and Google Drive environments, which facilitates large-scale processing and dataset storage.
 
-## Main technical components
+### 2. Frame extraction and dataset preparation
 
-### 1. Frame extraction from YouTube
+The extraction process samples frames from the video stream at fixed intervals in order to reduce redundancy while preserving temporal coverage. This stage yields a curated image set suitable for supervised learning and visual analysis.
 
-The script in [Code to create frame of a video youtube.md](Code%20to%20create%20frame%20of%20a%20video%20youtube.md) includes:
+### 3. Model training
 
-- `yt-dlp` to download the video,
-- Google Drive integration,
-- automatic folder creation,
-- frame extraction every `FRAME_INTERVAL` frames.
+The training pipeline relies on YOLOv8, a state-of-the-art real-time object detection architecture. A pretrained `yolov8c.pt` model is used as a starting point, followed by transfer learning on the custom wave dataset.
 
-Typical parameters:
-
-- `URL_YOUTUBE`
-- `DRIVE_PROJECT_FOLDER`
-- `DESTINATION_IMAGES_FOLDER`
-- `FRAME_INTERVAL`
-
-### 2. Frame extraction from Drive
-
-The script [code to create frame of a video in a drive](code%20to%20create%20frame%20of%20a%20video%20in%20a%20drive) uses OpenCV to:
-
-- read a local or mounted video,
-- iterate over frames,
-- save JPEG images in a target directory,
-- create the output folder if needed.
-
-### 3. YOLOv8 training
-
-The script [Code to train the YOLOv8 AI](Code%20to%20train%20the%20YOLOv8%20AI) contains the core training flow with:
-
-- installation of `ultralytics`,
-- Google Drive mounting,
-- use of a pretrained `yolov8c.pt` model,
-- dataset YAML configuration,
-- model output saved to a project folder.
-
-Example:
+Typical training configuration:
 
 ```bash
 !yolo train \
@@ -128,28 +99,35 @@ Example:
   save=True
 ```
 
-### 4. Inference and result visualization
+### 4. Inference and annotation
 
-The script [Code to see the training](Code%20to%20see%20the%20training) demonstrates:
-
-- loading a trained model,
-- processing a video frame by frame,
-- drawing detection boxes,
-- computing wave-related metrics,
-- displaying a global risk status overlay.
+Once trained, the model is applied to new video sequences. Detection results are annotated directly on the frames, with visual overlays for object localization and risk assessment. This enables both qualitative inspection and quantitative monitoring of wave-related events.
 
 ---
 
-## Dependencies
+## Scientific relevance
+
+This project sits at the intersection of:
+
+- computer vision,
+- deep learning,
+- coastal environment monitoring,
+- hydrodynamic interpretation of image sequences.
+
+It contributes to the development of low-cost and scalable visual analysis methods for marine observation and early detection of hazardous wave conditions.
+
+---
+
+## Technical dependencies
 
 - Python 3.9+
 - OpenCV (`cv2`)
 - `yt-dlp`
 - `ultralytics`
-- Google Drive
-- Google Colab (recommended for this workflow)
+- Google Drive API / Drive integration
+- Google Colab environment
 
-Install the main packages with:
+Installation:
 
 ```bash
 pip install yt-dlp
@@ -159,23 +137,24 @@ pip install opencv-python
 
 ---
 
-## Usage example
+## Proposed workflow
 
-1. Open the project in Google Colab.
-2. Mount your Google Drive.
-3. Download or load the source video.
-4. Extract frames to a dedicated dataset folder.
-5. Train the YOLOv8 model.
-6. Apply the model to a new video sequence.
-7. Review annotated outputs and detection metrics.
+1. Acquire video material from the selected source.
+2. Establish the dataset structure under Google Drive.
+3. Extract relevant frames with controlled temporal sampling.
+4. Train the YOLOv8 model on labeled or weakly supervised data.
+5. Perform inference on new sequences.
+6. Validate detection quality and interpret wave behavior.
+7. Refine model parameters and thresholds for improved robustness.
 
 ---
 
-## Notes
+## Limitations and future work
 
-- This project is intended as a research and prototype pipeline.
-- Drive paths must be adapted to the real folder structure in your environment.
-- Model parameters, frame intervals, and risk thresholds may need adjustment depending on the dataset and use case.
+- Dataset quality and annotation consistency remain critical factors for model reliability.
+- The workflow may require domain-specific tuning to improve generalization across wave regimes and coastal scenes.
+- Further integration with remote sensing products or Copernicus data could support more robust environmental interpretation.
+- Additional quantitative metrics could be added to validate model performance more rigorously.
 
 ---
 
@@ -189,4 +168,4 @@ Universidade Federal do Rio de Janeiro (UFRJ)
 
 ## License
 
-This repository is shared for academic and demonstration purposes. Please cite the original work when reusing or adapting the material.
+This repository is distributed for academic, research, and educational use. Reuse and adaptation are encouraged with appropriate attribution to the original project.
