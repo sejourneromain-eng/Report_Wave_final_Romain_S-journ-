@@ -1,0 +1,24 @@
+from google.colab import drive
+# Mount Google Drive to access files and save training results
+drive.mount ('/content/drive')
+
+
+# Install the official Ultralytics YOLO library
+%pip install ultralytics
+
+
+import ultralytics
+# Verify that the environment and GPU are correctly configured
+ultralytics.checks()
+
+
+# Start training the YOLO model
+!yolo train \
+ model=yolov8c.pt\ #Pre-trained YOLOv8c model weights used for transfer learning
+ data=/content/drive/MyDrive/Project_Yolo_v9/Waveproject.yaml \  
+ project=/content/drive/MyDrive/Wave/Project \ # runs and outputs will be saved
+ name=train \ # Subfolder name for this specific training run
+ epochs=75 \ # Total number of complete passes through the training dataset
+ batch=10 \ # Number of images processed per training step
+ imgsz=640 \ # Target image size
+ save=True # Automatically save model checkpoints and final weights

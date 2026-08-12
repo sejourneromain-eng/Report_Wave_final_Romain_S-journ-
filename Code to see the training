@@ -1,0 +1,281 @@
+from google.colab import drive
+drive.mount ('/content/drive')
+
+
+# 0. ULTRALYTICS (YOLO) INSTALLATION
+
+
+%pip install ultralytics -q
+
+
+import cv2
+import os
+from ultralytics import YOLO
+from google.colab.patches import cv2_imshow
+from IPython.display import clear_output
+import numpy as np # Necessary import for calculations
+
+
+def process_surf_video(model_path, video_path):
+    if not os.path.exists(model_path):
+        print(f"Error: Model not found at path: {model_path}")
+        return
+    if not os.path.exists(video_path):
+        print(f"Error: Video not found at path: {video_path}")
+        return
+
+
+    print("Loading your Ipanema YOLOv8 model...")
+    model = YOLO(model_path)
+    print("Model loaded successfully!")
+
+
+    class_names = model.names
+    cap = cv2.VideoCapture(video_path)
+
+
+    # OUTPUT FOLDER FOR ANNOTATED FRAMES  
+    output_frames_folder = '/content/drive/MyDrive/Project_Yolo_v8/Annotated_Wave_Frames'
+    os.makedirs(output_frames_folder, exist_ok=True)
+    print(f"📂 Annotated frames will be saved in: {output_frames_folder}")
+
+
+    # HEIGHT SCALE CONFIGURATION
+    ESTIMATED_WAVE_HEIGHT_METERS = 0.7  # Estimated size of the reference wave
+    scaling_factor = None
+
+
+    # Retrieve video dimensions
+    video_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+
+    # Horizon (higher in the image = smaller pixel) -> 50m
+    Y_HORIZON = int(video_height * 0.2)
+    # Water edge / Sand (lower in the image = larger pixel) -> 5m
+    Y_SABLE = int(video_height * 0.7)
+
+
+    MAX_DISTANCE = 50.0  # Distance to the horizon (in meters)
+    MIN_DISTANCE = 5.0   # Distance at the sand level (in meters)
+
+
+    # CONSTANTS FOR RISK CALCULATION
+    U_THR = 1.0           # Orbital velocity threshold (m/s)
+    TAU_RATIO = 0.75      # Fixed shear ratio
+    H_LOCAL = 1.2         # Local water depth (m)
+    PENTE = 0.03          # 3% slope
+    ALPHA, BETA, GAMMA, DELTA, EPSILON = 0.3, 0.3, 0.2, 0.1, 0.1
+    P = 0                 # Human presence
+
+
+    # Variables for global risk status
+    last_known_statut = "SAFE"
+    last_known_color = (0, 255, 0)
+    last_known_risk = 0.0 # Variable to track the latest calculated risk R value
+    has_exceeded_safe = False # Variable to track if we've ever entered a dangerous zone
+
+
+    frame_count = 0
+    saved_annotated_count = 0
+   
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            print("End of video reached.")
+            break
+
+
+        frame_count += 1
+        if frame_count % 3 != 0:
+            continue
+
+
+        results = model(frame, verbose=False)[0]
+        boxes = results.boxes.cpu().numpy()
+
+
+        best_boxes_per_class = {}
+        for box in boxes:
+            conf = box.conf[0]
+            cls = int(box.cls[0])
+            if conf >= 0.3:
+                if cls not in best_boxes_per_class or conf > best_boxes_per_class[cls].conf[0]:
+                    best_boxes_per_class[cls] = box
+
+
+        # Step 1: Height calibration (Based solely on the 'Wave' class)
+        if scaling_factor is None:
+            for cls, box in best_boxes_per_class.items():
+                class_name = class_names.get(cls, f"Class_{cls}")
+                conf = box.conf[0]
+                clean_name = class_name.lower().replace(" ", "")
+
+
+                if clean_name == "wave" or cls == 0:
+                    if conf >= 0.5:
+                        x1, y1, x2, y2 = box.xyxy[0]
+                        first_wave_height_pixels = y2 - y1
+                        if first_wave_height_pixels > 0:
+                            scaling_factor = ESTIMATED_WAVE_HEIGHT_METERS / first_wave_height_pixels
+                            print(f"-> Height scale calibrated: 1px = {scaling_factor:.4f}m")
+                            break
+
+
+        # Step 2: Drawing and depth calculation based on the bottom of each box (y2)
+        # and Step 3: Risk calculation for waves
+        for cls, box in best_boxes_per_class.items():
+            x1, y1, x2, y2 = box.xyxy[0]
+            conf = box.conf[0]
+            class_name = class_names.get(cls, f"Class_{cls}")
+
+
+            label = f"{class_name} {conf:.2f}"
+            clean_name = class_name.lower().replace(" ", "")
+
+
+            # Default colors and text_mesure
+            color = (255, 255, 255) # Default white for general objects
+            text_mesure = "" # Initialize text_mesure for each box
+
+
+            # --- DISTANCE CALCULATION WITH YOUR NEW LIMITS (Y_HORIZON and Y_SABLE) ---
+            y2_clamped = max(Y_HORIZON, min(y2, Y_SABLE))
+            position_ratio = (y2_clamped - Y_HORIZON) / (Y_SABLE - Y_HORIZON)
+            current_distance = MAX_DISTANCE - (position_ratio * (MAX_DISTANCE - MIN_DISTANCE))
+
+
+            if clean_name == "wave":
+                # Apply wave specific color (will be overridden by risk color if calculated)
+                color = (0, 255, 0) # Green for waves by default if no risk calculation or scaling factor yet
+
+
+                if scaling_factor is not None:
+                    box_height_pixels = y2 - y1
+                    wave_height_meters = box_height_pixels * scaling_factor
+
+
+                    # 1. Calculate H (measured height)
+                    # Already calculated as wave_height_meters
+
+
+                    # 2. Calculate wave number k (Shallow water approximation)
+                    omega = 2 * np.pi / 8.0
+                    k = omega / np.sqrt(9.81 * H_LOCAL)
+
+
+                    # 3. Calculate Ub (Orbital velocity)
+                    ub = (np.pi * wave_height_meters) / (8.0 * np.sinh(k * H_LOCAL))
+                    ub_ratio = ub / U_THR
+
+
+                    # 4. Calculate B (Breaking index via Iribarren)
+                    L0 = (9.81 * 8.0**2) / (2 * np.pi)
+                    xi = PENTE / np.sqrt(wave_height_meters / L0)
+                    B = np.clip(xi / 2.0, 0, 1) # Empirical normalization
+
+
+                    # 5. Calculate Risk R
+                    raideur = wave_height_meters / H_LOCAL
+                    R = (ALPHA * raideur) + (BETA * ub_ratio) + (GAMMA * TAU_RATIO) + (DELTA * B) + (EPSILON * P)
+                    R = np.clip(R, 0, 1)
+
+
+                    # DEFINITION OF STATUS AND COLOR ACCORDING TO RISK R
+                    # Determine current status for this wave
+                    if R >= 0.7:
+                        statut = "DANGEROUS"
+                        color = (0, 0, 255) # Red
+                        has_exceeded_safe = True # Activate the latch lock
+                    elif R >= 0.4:
+                        statut = "MODERATE"
+                        color = (0, 255, 255) # Yellow/Cyan
+                        has_exceeded_safe = True # Activate the latch lock
+                    else:
+                        # Latch logic: if we've already exceeded safe, we remain at least MODERATE
+                        if has_exceeded_safe:
+                            statut = "MODERATE"
+                            color = (0, 255, 255)
+                        else:
+                            statut = "SAFE"
+                            color = (0, 255, 0) # Green
+
+
+                    # Update global status with that of the riskiest wave
+                    last_known_statut = statut
+                    last_known_color = color
+                    last_known_risk = R # Store the R value for display
+
+
+                    text_mesure = f"H:{wave_height_meters:.1f}m | R:{R:.2f} | {statut}"
+                else: # if scaling_factor is None, but it's a wave
+                    text_mesure = f"H: Calibrating | Dist: {current_distance:.1f}m"
+
+
+            elif clean_name in ["foam", "wavefoam"]:
+                text_mesure = f"Dist: {current_distance:.1f}m"
+                color = (255, 255, 255) # White for Foam / Wave foam
+
+
+            # Display measurements above the box
+            if text_mesure:
+                cv2.putText(frame, text_mesure, (int(x1), int(y1) - 30),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+
+
+            # Drawing the YOLO bounding box
+            cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), color, 2)
+            cv2.putText(frame, label, (int(x1), int(y1) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+
+
+
+
+        # DISPLAY GLOBAL RISK STATUS AND R VALUE
+        frame_width = frame.shape[1]
+
+
+        # Fixed horizontal position shifted more to the left (e.g., at 50% or 55% instead of 75%)
+        text_x = int(frame_width * 0.55)
+        # Fixed vertical position (e.g., 700 pixels from the top)
+        text_y = 700
+
+
+        # Text definition including the R value score
+        text_status = f"STATUS: {last_known_statut} (R: {last_known_risk:.2f})"
+
+
+        # Semi-transparent background rectangle for good visibility
+        # Calculate size so the background adapts to the text
+        text_size = cv2.getTextSize(text_status, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)[0]
+        cv2.rectangle(frame,
+                      (text_x - 10, text_y - 30),
+                      (text_x + text_size[0] + 10, text_y + 10),
+                      (0, 0, 0), -1)
+
+
+        # Text overlay
+        cv2.putText(frame, text_status, (text_x, text_y),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, last_known_color, 2)
+
+
+        # --- SAVE ANNOTATED FRAME TO DRIVE ---
+        output_image_name = f"annotated_frame_{frame_count:06d}.jpg"
+        output_image_path = os.path.join(output_frames_folder, output_image_name)
+        cv2.imwrite(output_image_path, frame)
+        saved_annotated_count += 1
+
+
+        clear_output(wait=True)
+        cv2_imshow(frame)
+
+
+    cap.release()
+    print(f"Surf session analysis completed! {saved_annotated_count} annotated frames saved to Drive.")
+
+
+# --- PATHS ---
+MY_YOLOV8_MODEL = '/content/drive/MyDrive/Project_Internship_Yolo_v8/Wave_training/Project/train-10/weights/best.pt'
+MY_IPANEMA_VIDEO = '/content/drive/MyDrive/Project_Yolo_v8/Wave_vidéo/Ipanema_4 05_16h25.mp4'
+
+
+# Launch
+process_surf_video(MY_YOLOV8_MODEL, MY_IPANEMA_VIDEO)

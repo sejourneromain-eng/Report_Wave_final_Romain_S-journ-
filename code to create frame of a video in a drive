@@ -1,0 +1,66 @@
+import cv2
+import os
+from google.colab import drive
+
+
+# 1. Drive Connection and configuration
+
+
+# Automatic connection to the drive
+drive.mount('/content/drive')
+
+
+# Path in the drive to get the video
+video_path = "/content/drive/MyDrive/Project_Yolo_v9/Wave_vidéo/Vidéo_ipanema_2.mp4"
+output_folder = "/content/drive/MyDrive/Project_Yolo_v9/Wave_Pictures/Images_Ipanema"
+
+
+FRAME_INTERVAL = 30
+
+
+# 2. Extraction and Splitting
+
+
+if not os.path.exists(video_path):
+    print(f"❌ Error: Video not found at path: {video_path}")
+else:
+    # Create the destination folder if it doesn't exist
+    os.makedirs(output_folder, exist_ok=True)
+
+
+    # Load the video
+    cap = cv2.VideoCapture(video_path)
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+
+    print(f"🎞️ Video detected: approximately {total_frames} frames in total.")
+    print(f"⏳ Extraction started (1 image every {FRAME_INTERVAL} frames)...")
+
+
+    frame_idx = 0
+    saved_images = 0
+
+
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break  # End of video reached
+
+
+        # Save only according to the interval
+        if frame_idx % FRAME_INTERVAL == 0:
+            image_name = f"Vidéo_ipanema_youtube_frame_{saved_images:05d}.jpg"
+            image_path = os.path.join(output_folder, image_name)
+            cv2.imwrite(image_path, frame)
+            saved_images += 1
+
+
+        frame_idx += 1
+
+
+    cap.release()
+    print("\n" + "="*50)
+    print(f"✅ Extraction completed successfully!")
+    print(f"📸 {saved_images} images have been saved to your Drive.")
+    print(f"📂 Storage folder: {output_folder}")
+    print("="*50)
